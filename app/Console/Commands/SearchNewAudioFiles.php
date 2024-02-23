@@ -20,8 +20,7 @@ class SearchNewAudioFiles extends Command
     /**
      * The name and signature of the console command.
      * created by the Ashley Torray at 2024_10_55
-     * Thiss code makes you helpful to search the new audio files added by the client
-     * 
+     * This code makes you helpful to search the new audio files added by the client
      */
 
     protected $signature = 'search:new-audio-files';
@@ -68,9 +67,45 @@ class SearchNewAudioFiles extends Command
                 }
                 $this->line("<info> {$path} </info>file is delected.");
             }
-            if($type == Watch::EVENT_TYPE_DIRECTORY_CREATED)
-            {
-                $this->line("directory that includes <info> {$path} </info>file is created.");
+            elseif ($type == Watch::EVENT_TYPE_DIRECTORY_CREATED) {
+                // Check the contents of the directory to determine if we have multiple files or just one file
+                $filesInDir = array_diff(scandir($path), array('.', '..')); // Exclude '.' and '..'
+                
+                if (count($filesInDir) > 1) {
+                    $this->line("Directory with multiple files created at path: <info>{$path}</info>");
+                    foreach ($filesInDir as $file) {
+                        $filePath = $path . DIRECTORY_SEPARATOR . $file;
+                        if (is_file($filePath)) {
+                            $audioProperty = $this->getAudioProperty($filePath);
+                            AudioFile::create([
+                                'file_path' => $filePath,
+                                'file_name' => basename($filePath),
+                                'duration' => $audioProperty['duration'],
+                                'file_size' => $audioProperty['file_size'],
+                                'format' => $audioProperty['format'],                       
+                            ]);
+                            $this->line("new <info>{$filePath}</info> file inserted into Database");
+                            // $this->splitAudioFile($filePath);
+                        }
+                    }
+                } elseif (count($filesInDir) === 1) {
+                    $singleFilePath = realpath($path . DIRECTORY_SEPARATOR . array_pop($filesInDir));
+                    if (is_file($singleFilePath)) {
+                        $this->line("new audio file has uploaded. inserting into database......");
+                            $audioProperty = $this->getAudioProperty($singleFilePath);
+                            AudioFile::create([
+                                'file_path' => $singleFilePath,
+                                'file_name' => basename($singleFilePath),
+                                'duration' => $audioProperty['duration'],
+                                'file_size' => $audioProperty['file_size'],
+                                'format' => $audioProperty['format'],                       
+                            ]);
+                            $this->line("Directory with a single file created. Processing file: <info>{$singleFilePath}</info>");
+                            $this->splitAudioFile($singleFilePath);
+                    }
+                } else {
+                    $this->line("Empty directory created at path: <info>{$path}</info>");
+                }
             }
             if($type == Watch::EVENT_TYPE_DIRECTORY_DELETED)
             {
@@ -83,11 +118,9 @@ class SearchNewAudioFiles extends Command
         // $aduioConvertPath = Storage::disk('local')->files($audioFileConvertPath);
 
     }
-
-
     // get the duration of audio file
-
-    public function getAudioProperty(string $filePath) : array{
+    public function getAudioProperty(string $filePath) : array
+    {
         
         
         $ffprobe = \FFMpeg\FFProbe::create();
@@ -120,18 +153,22 @@ class SearchNewAudioFiles extends Command
         ];
         return $aduioProperty;
     }
-
-
     //split new added audio file to refer the excellog file
-
-    public function splitAudioFile(string $filePath){
+    public function splitAudioFile(string $filePath)
+    {
 
         $audioFileInfo = $this->getAudioFileInfo(basename($filePath));
         $tillDateTime = new \DateTime($audioFileInfo['date'].''.$audioFileInfo['time']);
+        $minute  =$tillDateTime->format('i');
         $fromDateTime = $tillDateTime->format('H:i:s');
+        $this->line($minute);
+        if($minute != "00")
+        {
+            $fromDateTime = $tillDateTime->modify('-1 minute');
+            $fromDateTime = $fromDateTime->format('H:i:s');
+        }
         $toDateTime = $tillDateTime->modify('+1 hour');
-        $toDateTime = $toDateTime->format('H:i:s');
-
+        $toDateTime = $toDateTime->format('H:00:00');
         $matchAudioInfos = ExcelAudioLog::select('order_no', 'precek', 'waiter', 'file_path')->where('accounting_day', '=', $audioFileInfo['date'])->where('precek', '>', $fromDateTime)->where('precek', '<', $toDateTime)->orderBy('precek', 'asc')->get();
         if($matchAudioInfos->isEmpty())
         {
@@ -192,8 +229,8 @@ class SearchNewAudioFiles extends Command
         // ];
         // return $splitedFileInfo;  
     }
-
-    public function mergeTwoFiles(string $originalFileName, $filePath) {
+    public function mergeTwoFiles(string $originalFileName, $filePath) 
+    {
         
         $preAudioFile = AudioFile::where('file_name', '<', $originalFileName)->where('file_name', 'like', '%to%')->orderBy('file_name', 'desc')->limit(1)->first();
         if(!$preAudioFile)
@@ -276,9 +313,9 @@ class SearchNewAudioFiles extends Command
             echo "An error occurred: " . $e->getMessage() . "\n";
         }
     }
-
     // get the date and time from audio file name
-    public function getAudioFileInfo(string $fileName) : array {
+    public function getAudioFileInfo(string $fileName) : array 
+    {
         
         // Regular expression to match the expected format
         $pattern = '/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*_.+\.wav$/';
