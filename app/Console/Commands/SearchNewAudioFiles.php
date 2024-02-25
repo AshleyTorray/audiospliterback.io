@@ -32,12 +32,17 @@ class SearchNewAudioFiles extends Command
 
     public function handle()
     {
-        $excelLogPath = env('EXCEL_LOG');
-        $excelPath = Storage::disk('public')->path($excelLogPath);
+        // $excelLogPath = env('EXCEL_LOG');
+        // $excelPath = Storage::disk('public')->path($excelLogPath);
+        $excelPath = env('EXCEL_LOG');
+
+      
         $this->initExcelFileLog($excelPath);
 
-        $audioFilePath = env('AUDIO_PATH');
-        $audioPath = Storage::disk('public')->path($audioFilePath);
+        // $audioFilePath = env('AUDIO_PATH');
+        // $audioPath = Storage::disk('public')->path($audioFilePath);
+        $audioPath = env('AUDIO_PATH');
+
         $this->initAudioFiles($audioPath);
         $this->line("<info>!Note: Auto check the uploaded audio files is runnning </info>=============");
         
@@ -91,7 +96,6 @@ class SearchNewAudioFiles extends Command
                                 'format' => $audioProperty['format'],                       
                             ]);
                             $this->line("new <info>{$filePath}</info> file inserted into Database");
-                            // $this->splitAudioFile($filePath);
                         }
                     }
                 } elseif (count($filesInDir) === 1) {
@@ -133,15 +137,13 @@ class SearchNewAudioFiles extends Command
             if(!$existingFile)
             {
                 Excel::import(new ExcelAudioLogImport($file->getPathname()), $file->getPathname());
-                $this->line("new Excel-log file {$file->getFilename()} saved in database table excel_log.");
+                $this->line("new Excel-log file {$file->getFilename()} saved in database table <info>excel_audio_log</info>.");
             }
             else
             {
-                $this->line("<info>========These Excel log files has been already updated===========</info>");
+                $this->line("<info>========These Excel log file{$file->getFilename()} has been already updated===========</info>");
             }
         }
-          
-        
     }
 
     // if the audio files exist in the upload audio directory, save them in the database
@@ -249,7 +251,10 @@ class SearchNewAudioFiles extends Command
             $audio = $ffmpeg->open($filePath);
             $format = new Wav();            
             $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
-            $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+            // $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+
+            $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
+
             $audio->addFilter(new \FFMpeg\Filters\Audio\SimpleFilter(['-af', 'anlmdn']));
             $count  = 0;
             foreach($precekArray as $precek)

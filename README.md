@@ -37,6 +37,10 @@
         ```shell
             $ php artisan migrate
         ```` 
+    - install php package to the project
+    ```shell
+        $ composer install
+    ```` 
     - adjust the folder permission
         ```shell
             # Set the correct folder permissions for Laravel
@@ -48,13 +52,12 @@
             $ sudo chmod -R ug+rwx storage bootstrap/cache
         ````
     - create the folders in follow url.
-        go to '[project root]/storage/app/public' using Terminal, you have to create 3 folders.
+        go to '/home/user' using Terminal, you have to create 2 folders.
+        * now navigate to current audio_new directory level directory, and create 2 folders.
         ```shell
-            $ sudo mkdir audio
             $ sudo mkdir convert
             $ sudo mkdir log
         ````
-        here, audio directory is need for uploading the recorded audio *.wav files.
         And convert directory is need for downloading the splited audio *.mp3 files.
         log directory is need for uploading the excel log files from the iiko.com
 3. Run the project
