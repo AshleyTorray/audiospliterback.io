@@ -5,12 +5,15 @@ namespace App\Console\Commands;
 use App\Models\ExcelAudioLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\File;
 use Illuminate\Console\Command;
 use App\Models\AudioFile;
 use Spatie\Watcher\Watch;
 use FFMpeg\FFMpeg;
 use FFMpeg\Format\Audio\Wav;
 use FFMpeg\Format\Audio\Mp3;
+use App\Imports\ExcelAudioLogImport;
+use Maatwebsite\Excel\Facades\Excel;
 use Exception;
 use FFMpeg\Coordinate\TimeCode;
 
@@ -29,10 +32,13 @@ class SearchNewAudioFiles extends Command
 
     public function handle()
     {
+        $excelLogPath = env('EXCEL_LOG');
+        $excelPath = Storage::disk('public')->path($excelLogPath);
+        $this->initExcelFileLog($excelPath);
+
         $audioFilePath = env('AUDIO_PATH');
         $audioPath = Storage::disk('public')->path($audioFilePath);
-        
-
+        $this->initAudioFiles($audioPath);
         $this->line("<info>!Note: Auto check the uploaded audio files is runnning </info>=============");
         
         Watch::path($audioPath)->onAnyChange(function (string $type, string $path) {
@@ -113,15 +119,69 @@ class SearchNewAudioFiles extends Command
 
             }
         })->start();
-
-        // $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
-        // $aduioConvertPath = Storage::disk('local')->files($audioFileConvertPath);
-
     }
+
+    //if the excel files exist in the upload log directory,save them in the database
+    public function initExcelFileLog(string $excelFileLogPath){
+
+        $this->line("<info>!Note : initializing the Excel files......");
+        $allFiles = File::allFiles($excelFileLogPath);
+        foreach($allFiles as $file)
+        {
+            $existingFile = ExcelAudioLog::where('file_path', $file->getPathname())->where('file_name', $file->getFilename())->first();
+
+            if(!$existingFile)
+            {
+                Excel::import(new ExcelAudioLogImport($file->getPathname()), $file->getPathname());
+                $this->line("new Excel-log file {$file->getFilename()} saved in database table excel_log.");
+            }
+            else
+            {
+                $this->line("<info>========These Excel log files has been already updated===========</info>");
+            }
+        }
+          
+        
+    }
+
+    // if the audio files exist in the upload audio directory, save them in the database
+    public function initAudioFiles($audioFilepath) {
+        $this->line("<info>!Note : initializing the audio files......");
+        $allFiles = File::allFiles($audioFilepath);
+        foreach($allFiles as $file)
+        {
+            // $this->line("@@@@@@@@File in audio directory{$file}");
+
+            $fileInfo = $this->getAudioFileInfo($file->getFilename());
+            $newDateTime =  new \DateTime($fileInfo['date'].' '.$fileInfo['time']);
+            $newDateTime = $newDateTime->format("Y-m-d H:i:s");
+            $existingFile = AudioFile::where('file_path', $file->getPathname())->where('file_name', $file->getFilename())->first();
+
+            // check if the file exists in database audio_files
+            if(!$existingFile)
+            {
+                $audioProperty = $this->getAudioProperty($file->getPathname());
+                AudioFile::create([
+                    'file_path' => $file->getPathname(),
+                    'file_name' => $file->getFilename(),
+                    'duration' => $audioProperty['duration'],
+                    'file_size' => $audioProperty['file_size'],
+                    'format' => $audioProperty['format']    
+                ]);
+                $this->line("======{$file->getPathname()} saved in database table aduio_files======");
+                $this->splitAudioFile($file->getPathname());
+            }
+            else{
+                
+                $this->line("======These Aduio files has been already updated =======");
+            }
+            
+        }
+    }
+
     // get the duration of audio file
     public function getAudioProperty(string $filePath) : array
     {
-        
         
         $ffprobe = \FFMpeg\FFProbe::create();
         $durationSeconds = $ffprobe->format($filePath)->get('duration');
@@ -153,6 +213,7 @@ class SearchNewAudioFiles extends Command
         ];
         return $aduioProperty;
     }
+
     //split new added audio file to refer the excellog file
     public function splitAudioFile(string $filePath)
     {
@@ -169,6 +230,7 @@ class SearchNewAudioFiles extends Command
         }
         $toDateTime = $tillDateTime->modify('+1 hour');
         $toDateTime = $toDateTime->format('H:00:00');
+        $this->line(" from{$fromDateTime} to {$toDateTime}");
         $matchAudioInfos = ExcelAudioLog::select('order_no', 'precek', 'waiter', 'file_path')->where('accounting_day', '=', $audioFileInfo['date'])->where('precek', '>', $fromDateTime)->where('precek', '<', $toDateTime)->orderBy('precek', 'asc')->get();
         if($matchAudioInfos->isEmpty())
         {
@@ -229,6 +291,8 @@ class SearchNewAudioFiles extends Command
         // ];
         // return $splitedFileInfo;  
     }
+
+    //merge pre-last splited file and new-first splited file
     public function mergeTwoFiles(string $originalFileName, $filePath) 
     {
         
@@ -267,6 +331,7 @@ class SearchNewAudioFiles extends Command
 
         $this->line("merged two files : {$preAudioFile->file_name} and {$aftAudioFile->file_name}");
     }
+
     //convert to Mp3 files
     public function ZipToMp3file($filePath)
     {
@@ -313,6 +378,7 @@ class SearchNewAudioFiles extends Command
             echo "An error occurred: " . $e->getMessage() . "\n";
         }
     }
+
     // get the date and time from audio file name
     public function getAudioFileInfo(string $fileName) : array 
     {

@@ -36,7 +36,7 @@ class SearchExcelLog extends Command
         $excelPath = Storage::disk('public')->path($excelLogPath);
         
         $this->line("<info>!Note: Auto check the uploaded Excel log files is runnning </info>=============");
-        
+        $this->checkExistingExcelFile();
         Watch::path($excelPath)->onAnyChange(function (string $type, string $path) {
             $filename = basename($path);
             $existingFile = ExcelAudioLog::where('file_path', $path)->where('file_name', $filename)->first();
@@ -58,5 +58,21 @@ class SearchExcelLog extends Command
                 $this->line("<info> {$path} </info>file is delected.");
             }
         })->start();
+        // Watch::path($excelPath)->onAnyChange(function (string $type, string $path) {
+        //     $this->line("@@@@@@@@@@@@@@");
+        // })->start();
+    }
+
+    public function checkExistingExcelFile(){
+        
+        // get the Excel log from the database
+        $ExcelLogs = ExcelAudioLog::where('precek', '!=', 0)->orderBy('order_no', 'asc')->get();
+        
+        foreach($ExcelLogs as $ExcelLog)
+        {
+            
+            $this->line("excel file log====={$ExcelLog->accounting_day}");
+        }
+        
     }
 }
