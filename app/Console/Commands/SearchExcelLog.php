@@ -33,7 +33,9 @@ class SearchExcelLog extends Command
     {
 
         $excelLogPath = env('EXCEL_LOG');
-        $excelPath = Storage::disk('public')->path($excelLogPath);
+        // $excelPath = Storage::disk('public')->path($excelLogPath);
+        $excelPath = $excelLogPath;
+
         
         $this->line("<info>!Note: Auto check the uploaded Excel log files is runnning </info>=============");
         $this->checkExistingExcelFile();
@@ -55,7 +57,7 @@ class SearchExcelLog extends Command
                 {
                     ExcelAudioLog::where('file_path', $path)->delete();
                 }
-                $this->line("<info> {$path} </info>file is delected.");
+                $this->line("<info> {$path} </info>file is deleted.");
             }
         })->start();
         // Watch::path($excelPath)->onAnyChange(function (string $type, string $path) {
