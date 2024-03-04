@@ -48,7 +48,7 @@ class SearchNewAudioFiles extends Command
         
         Watch::path($audioPath)->onAnyChange(function (string $type, string $path) {
             $filename = basename($path);
-            $existingFile = AudioFile::where('file_path', $path)->where('file_name', $filename)->first();
+            $existingFile = AudioFile::where('file_name', $filename)->first();
             if($type == Watch::EVENT_TYPE_FILE_CREATED)
             {
                 if(!$existingFile)
@@ -132,8 +132,9 @@ class SearchNewAudioFiles extends Command
         $allFiles = File::allFiles($excelFileLogPath);
         foreach($allFiles as $file)
         {
-            $existingFile = ExcelAudioLog::where('file_path', $file->getPathname())->where('file_name', $file->getFilename())->first();
-
+            $existingFile = ExcelAudioLog::where('file_name', $file->getFilename())->first();
+            // print_r($existingFile);
+            
             if(!$existingFile)
             {
                 Excel::import(new ExcelAudioLogImport($file->getPathname()), $file->getPathname());
@@ -157,7 +158,7 @@ class SearchNewAudioFiles extends Command
             $fileInfo = $this->getAudioFileInfo($file->getFilename());
             $newDateTime =  new \DateTime($fileInfo['date'].' '.$fileInfo['time']);
             $newDateTime = $newDateTime->format("Y-m-d H:i:s");
-            $existingFile = AudioFile::where('file_path', $file->getPathname())->where('file_name', $file->getFilename())->first();
+            $existingFile = AudioFile::where('file_name', $file->getFilename())->first();
 
             // check if the file exists in database audio_files
             if(!$existingFile)
@@ -233,6 +234,7 @@ class SearchNewAudioFiles extends Command
         $toDateTime = $tillDateTime->modify('+1 hour');
         $toDateTime = $toDateTime->format('H:00:00');
         $this->line(" from{$fromDateTime} to {$toDateTime}");
+        $this->line(" accounting_day---->".$audioFileInfo['date']);
         $matchAudioInfos = ExcelAudioLog::select('order_no', 'precek', 'waiter', 'file_path')->where('accounting_day', '=', $audioFileInfo['date'])->where('precek', '>', $fromDateTime)->where('precek', '<', $toDateTime)->orderBy('precek', 'asc')->get();
         if($matchAudioInfos->isEmpty())
         {
@@ -394,7 +396,6 @@ class SearchNewAudioFiles extends Command
         if (preg_match($pattern, $fileName, $matches)) {
             // Construct the date string
             $date = "{$matches[1]}-{$matches[2]}-{$matches[3]}";
-            
             // Construct the time string
             $time = "{$matches[4]}:{$matches[5]}";
             $audioFileInfo =  [
