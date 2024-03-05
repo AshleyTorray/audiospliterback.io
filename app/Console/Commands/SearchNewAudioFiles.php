@@ -151,6 +151,7 @@ class SearchNewAudioFiles extends Command
     public function initAudioFiles($audioFilepath) {
         $this->line("<info>!Note : initializing the audio files......");
         $allFiles = File::allFiles($audioFilepath);
+        print_r($allFiles);
         foreach($allFiles as $file)
         {
             // $this->line("@@@@@@@@File in audio directory{$file}");
@@ -225,30 +226,46 @@ class SearchNewAudioFiles extends Command
         $tillDateTime = new \DateTime($audioFileInfo['date'].''.$audioFileInfo['time']);
         $minute  =$tillDateTime->format('i');
         $fromDateTime = $tillDateTime->format('H:i:s');
-        $this->line($minute);
         if($minute != "00")
         {
             $fromDateTime = $tillDateTime->modify('-1 minute');
             $fromDateTime = $fromDateTime->format('H:i:s');
         }
-        $toDateTime = $tillDateTime->modify('+1 hour');
-        $toDateTime = $toDateTime->format('H:00:00');
-        $this->line(" from{$fromDateTime} to {$toDateTime}");
-        $this->line(" accounting_day---->".$audioFileInfo['date']);
-        $matchAudioInfos = ExcelAudioLog::select('order_no', 'precek', 'waiter', 'file_path')->where('accounting_day', '=', $audioFileInfo['date'])->where('precek', '>', $fromDateTime)->where('precek', '<', $toDateTime)->orderBy('precek', 'asc')->get();
+        if($tillDateTime->format('H') == "23")
+        {
+            $toDateTime = $tillDateTime->format('H:59:59');    
+        }
+        else
+        {
+            $toDateTime = $tillDateTime->modify('+1 hour');
+            $toDateTime = $toDateTime->format('H:00:00');
+        }
+        
+        $this->line(" accounting_day---->".$audioFileInfo['date'] .", time------->".$audioFileInfo['time']. " : splited from {$fromDateTime} to {$toDateTime}");
+        $matchAudioInfos = ExcelAudioLog::select('order_no', 'precek', 'waiter', 'file_path', 'time', 'closed')->where('accounting_day', '=', $audioFileInfo['date'])->where('precek', '>', $fromDateTime)->where('precek', '<', $toDateTime)->orderBy('precek', 'asc')->get();
         if($matchAudioInfos->isEmpty())
         {
             $this->line("file {$filePath} is failed to insert into database");
         }
         else
         {
-            $precekArray = [];
-            foreach($matchAudioInfos as $matchAudioInfo){
-                array_push($precekArray, $matchAudioInfo->precek);
+            $splitStartArray = [];
+            $splitEndArray = [];
+
+            foreach($matchAudioInfos as $matchAudioInfo)
+            {
+                array_push($splitStartArray, $matchAudioInfo->time);
+                array_push($splitEndArray, $matchAudioInfo->closed);
             }
-            array_push($precekArray, $toDateTime);
-            print_r($precekArray);
-            $tempInterval = 0;
+            print_r($splitStartArray);
+            print_r($splitEndArray);
+            // $precekArray = [];
+            // foreach($matchAudioInfos as $matchAudioInfo){
+            //     array_push($precekArray, $matchAudioInfo->precek);
+            // }
+            // array_push($precekArray, $toDateTime);
+            // print_r($precekArray);
+            // $tempInterval = 0;
             $ffmpeg = FFMpeg::create();
             $audio = $ffmpeg->open($filePath);
             $format = new Wav();            
@@ -258,45 +275,99 @@ class SearchNewAudioFiles extends Command
             $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
 
             $audio->addFilter(new \FFMpeg\Filters\Audio\SimpleFilter(['-af', 'anlmdn']));
-            $count  = 0;
-            foreach($precekArray as $precek)
-            {
-                $this->line("path is {$precek}");
-                $tempTime = Carbon::createFromFormat('H:i:s', $precek);
-                
-                //add the last duration manually
 
-                if($count == (count($precekArray) - 1))
+            $timeIntervals = [];
+            
+            
+            $startTimeObject  = new \DateTime($fromDateTime);
+            $startTime = $startTimeObject->format('H')*3600 + $startTimeObject->format('i')* 60 + $startTimeObject->format('s');
+            for($i = 0; $i < count($splitStartArray); $i++)
+            {
+                $startDateTime = new \DateTime($splitStartArray[$i]);
+                $tempDateTime = new \DateTime($startDateTime->format('Y-m-d')." ".$fromDateTime);
+
+                if($startDateTime < $tempDateTime)
                 {
-                    $precek_duration =  61*59 - $tempInterval;
+                    $startDateTime->setTime($tempDateTime->format('H'), 0, 0);
                 }
                 else
                 {
-                    $precek_duration =  $tempTime->minute * 60 + $tempTime->second - $tempInterval;
+                    $startDateTime->modify('-1 minute');
                 }
 
-                //check if the precek time is same in ExcelLog
-
-                if($precek_duration != 0)
+                $endDateTimeString = $startDateTime->format('Y-m-d') . ' ' . $splitEndArray[$i];
+                $endDateTime = new \DateTime($endDateTimeString);
+                $tempDateTime = new \DateTime($endDateTime->format('Y-m-d')." ".$toDateTime);
+                
+                if($endDateTime > $tempDateTime)
                 {
-                    $audio->filters()->clip(TimeCode::fromSeconds($tempInterval), TimeCode::fromSeconds($precek_duration));
-                    $outputFilePath = $aduioConvertPath.'to'.$tempTime->format('H-i-s').'.wav';
+                    $endDateTime->setTime($tempDateTime->format('H'), 0, 0);
+                }
+                else
+                {
+                    $endDateTime->modify('+1 minute');
+                }
+                if ($endDateTime > $startDateTime) {
+                    $interval = $startDateTime->diff($endDateTime);
+                } else {
+                    $interval = $endDateTime->diff($startDateTime);
+                }
+
+                $splitStart  = $startDateTime->format('H') * 3600 + $startDateTime->format('i') * 60 + $startDateTime->format('s');
+                if($splitStart > $startTime)
+                {
+                    $splitStart = $splitStart - $startTime;
+                }
+                else
+                {
+                    $splitStart = 0;
+                }
+                $splitsDuration = $interval->h * 3600 + $interval->i * 60 + $interval->s;
+                
+                if($splitsDuration != 0)
+                {
+                    $audio->filters()->clip(TimeCode::fromSeconds($splitStart), TimeCode::fromSeconds($splitsDuration));
+                    $outputFilePath = $aduioConvertPath.'_from_'.$startDateTime->format('H-i-s').'_to_'.$endDateTime->format('H-i-s').'.wav';
                     $audio->save($format, $outputFilePath);
-                    $this->line("<info>{$filePath}</info> -> during <info>{$precek_duration} -> </info> splited </info>");
                     $this->zipToMp3file($outputFilePath);
                     unlink($outputFilePath);
                 }
-                $tempInterval = $tempTime->minute * 60 + $tempTime->second;
-                $count++;
-                
+                $startTime = $startDateTime->format('H') * 3600 + $startDateTime->format('i') * 60 + $startDateTime->format('s');
             }
-            $this->mergeTwoFiles(basename($filePath), $aduioConvertPath);
-        }
-        //merge last and first 
-        // $splitedFileInfo = [
+            // $count  = 0;
+            // foreach($precekArray as $precek)
+            // {
+            //     $this->line("path is {$precek}");
+            //     $tempTime = Carbon::createFromFormat('H:i:s', $precek);
+                
+            //     //add the last duration manually
 
-        // ];
-        // return $splitedFileInfo;  
+            //     if($count == (count($precekArray) - 1))
+            //     {
+            //         $precek_duration =  61*59 - $tempInterval;
+            //     }
+            //     else
+            //     {
+            //         $precek_duration =  $tempTime->minute * 60 + $tempTime->second - $tempInterval;
+            //     }
+
+            //     //check if the precek time is same in ExcelLog
+
+            //     if($precek_duration != 0)
+            //     {
+            //         $audio->filters()->clip(TimeCode::fromSeconds($tempInterval), TimeCode::fromSeconds($precek_duration));
+            //         $outputFilePath = $aduioConvertPath.'to'.$tempTime->format('H-i-s').'.wav';
+            //         $audio->save($format, $outputFilePath);
+            //         $this->line("<info>{$filePath}</info> -> during <info>{$precek_duration} -> </info> splited </info>");
+            //         $this->zipToMp3file($outputFilePath);
+            //         unlink($outputFilePath);
+            //     }
+            //     $tempInterval = $tempTime->minute * 60 + $tempTime->second;
+            //     $count++;
+                
+            // }
+            // $this->mergeTwoFiles(basename($filePath), $aduioConvertPath);
+        }
     }
 
     //merge pre-last splited file and new-first splited file
@@ -388,22 +459,19 @@ class SearchNewAudioFiles extends Command
 
     // get the date and time from audio file name
     public function getAudioFileInfo(string $fileName) : array 
-    {
-        
-        // Regular expression to match the expected format
-        $pattern = '/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})\d*_.+\.wav$/';
+    {        
+        $pattern = '/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_.*\.wav$/';
         $audioFileInfo = [];
         if (preg_match($pattern, $fileName, $matches)) {
-            // Construct the date string
             $date = "{$matches[1]}-{$matches[2]}-{$matches[3]}";
-            // Construct the time string
-            $time = "{$matches[4]}:{$matches[5]}";
+
+            $time = "{$matches[4]}:{$matches[5]}:{$matches[6]}";
+
             $audioFileInfo =  [
                 'date' => $date,
                 'time' => $time
             ];
         }
         return $audioFileInfo;
-
     }
 }

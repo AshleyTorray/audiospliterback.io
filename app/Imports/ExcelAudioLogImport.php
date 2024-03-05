@@ -30,6 +30,8 @@ class ExcelAudioLogImport implements ToModel, WithStartRow
     public function model(array $row)
     {
         $accountingDay = Date::excelToDateTimeObject($row[0]);
+        $time = Date::excelToDateTimeObject($row[5]);
+        $time = $time->format('Y-m-d H:i:s');
         $accountingDay = $accountingDay->format('Y-m-d');
         if($row[4] == null)
         {
@@ -39,6 +41,10 @@ class ExcelAudioLogImport implements ToModel, WithStartRow
         {
             $row[6] = Carbon::createFromTime(0,0);
         }
+        if($row[7] == null)
+        {
+            $row[7] = Carbon::createFromTime(0, 0, 0);
+        }
         if($row[9] == null)
         {
             $row[9] = "";
@@ -46,7 +52,9 @@ class ExcelAudioLogImport implements ToModel, WithStartRow
         return new ExcelAudioLog([
             'accounting_day' => $accountingDay,
             'order_no'       => $row[4],
+            'time'           => $time,
             'precek'         => $row[6],
+            'closed'         => $row[7],
             'waiter'         => $row[9],
             'file_path'      => $this->excelFilePath,
             'file_name'      => $this->excelFilename

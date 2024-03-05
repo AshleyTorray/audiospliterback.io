@@ -12,6 +12,8 @@ class ExcelAudioLog extends Model
         'accounting_day',
         'order_no',
         'precek',
+        'time',
+        'closed',
         'waiter',
         'file_path',
         'file_name'

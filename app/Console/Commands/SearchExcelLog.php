@@ -35,8 +35,6 @@ class SearchExcelLog extends Command
         $excelLogPath = env('EXCEL_LOG');
         // $excelPath = Storage::disk('public')->path($excelLogPath);
         $excelPath = $excelLogPath;
-        $this->line("*******".$excelPath);
-
         
         $this->line("<info>!Note: Auto check the uploaded Excel log files is runnning </info>=============");
         $this->checkExistingExcelFile();

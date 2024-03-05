@@ -15,7 +15,9 @@ return new class extends Migration
             $table->id();
             $table->date('accounting_day')->format('m.d.Y');
             $table->integer('order_no');
+            $table->dateTime('time')->format('m.d.Y H:i:s');
             $table->time('precek');
+            $table->time('closed');
             $table->string('waiter');
             $table->string('file_path');
             $table->string('file_name');
