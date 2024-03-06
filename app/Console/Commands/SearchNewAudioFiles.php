@@ -22,7 +22,7 @@ class SearchNewAudioFiles extends Command
 {
     /**
      * The name and signature of the console command.
-     * created by the Ashley Torray at 2024_10_55
+     * created by the Ashley Torray at 2024_03_03
      * This code makes you helpful to search the new audio files added by the client
      */
 
@@ -32,16 +32,16 @@ class SearchNewAudioFiles extends Command
 
     public function handle()
     {
-        // $excelLogPath = env('EXCEL_LOG');
-        // $excelPath = Storage::disk('public')->path($excelLogPath);
-        $excelPath = env('EXCEL_LOG');
+        $excelLogPath = env('EXCEL_LOG');
+        $excelPath = Storage::disk('public')->path($excelLogPath);
+        // $excelPath = env('EXCEL_LOG');
 
       
         $this->initExcelFileLog($excelPath);
 
-        // $audioFilePath = env('AUDIO_PATH');
-        // $audioPath = Storage::disk('public')->path($audioFilePath);
-        $audioPath = env('AUDIO_PATH');
+        $audioFilePath = env('AUDIO_PATH');
+        $audioPath = Storage::disk('public')->path($audioFilePath);
+        // $audioPath = env('AUDIO_PATH');
 
         $this->initAudioFiles($audioPath);
         $this->line("<info>!Note: Auto check the uploaded audio files is runnning </info>=============");
@@ -151,7 +151,6 @@ class SearchNewAudioFiles extends Command
     public function initAudioFiles($audioFilepath) {
         $this->line("<info>!Note : initializing the audio files......");
         $allFiles = File::allFiles($audioFilepath);
-        print_r($allFiles);
         foreach($allFiles as $file)
         {
             // $this->line("@@@@@@@@File in audio directory{$file}");
@@ -257,8 +256,6 @@ class SearchNewAudioFiles extends Command
                 array_push($splitStartArray, $matchAudioInfo->time);
                 array_push($splitEndArray, $matchAudioInfo->closed);
             }
-            print_r($splitStartArray);
-            print_r($splitEndArray);
             // $precekArray = [];
             // foreach($matchAudioInfos as $matchAudioInfo){
             //     array_push($precekArray, $matchAudioInfo->precek);
@@ -270,9 +267,9 @@ class SearchNewAudioFiles extends Command
             $audio = $ffmpeg->open($filePath);
             $format = new Wav();            
             $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
-            // $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+            $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
 
-            $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
+            // // $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
 
             $audio->addFilter(new \FFMpeg\Filters\Audio\SimpleFilter(['-af', 'anlmdn']));
 
@@ -285,16 +282,28 @@ class SearchNewAudioFiles extends Command
             {
                 $startDateTime = new \DateTime($splitStartArray[$i]);
                 $tempDateTime = new \DateTime($startDateTime->format('Y-m-d')." ".$fromDateTime);
-
+                $mergeTime1 = [];
+                $mergeTime2 = [];
                 if($startDateTime < $tempDateTime)
                 {
+                    $mergePreTime = new \DateTime($splitStartArray[$i]);
                     $startDateTime->setTime($tempDateTime->format('H'), 0, 0);
+                    $mergeTime1 = [
+                        'fromTime1' =>  $mergePreTime,
+                        'toTime1' => $startDateTime
+                    ];
+                    $mergeAftTime = new \DateTime($splitEndArray[$i]);
+                    $mergeTime2 = [
+                        'fromTime2' => $startDateTime,
+                        'toTime2' => $mergeAftTime
+                    ];
+
                 }
                 else
                 {
                     $startDateTime->modify('-1 minute');
                 }
-
+                
                 $endDateTimeString = $startDateTime->format('Y-m-d') . ' ' . $splitEndArray[$i];
                 $endDateTime = new \DateTime($endDateTimeString);
                 $tempDateTime = new \DateTime($endDateTime->format('Y-m-d')." ".$toDateTime);
@@ -307,12 +316,14 @@ class SearchNewAudioFiles extends Command
                 {
                     $endDateTime->modify('+1 minute');
                 }
+                
                 if ($endDateTime > $startDateTime) {
                     $interval = $startDateTime->diff($endDateTime);
                 } else {
                     $interval = $endDateTime->diff($startDateTime);
                 }
-
+                
+                
                 $splitStart  = $startDateTime->format('H') * 3600 + $startDateTime->format('i') * 60 + $startDateTime->format('s');
                 if($splitStart > $startTime)
                 {
@@ -322,6 +333,7 @@ class SearchNewAudioFiles extends Command
                 {
                     $splitStart = 0;
                 }
+                
                 $splitsDuration = $interval->h * 3600 + $interval->i * 60 + $interval->s;
                 
                 if($splitsDuration != 0)
@@ -332,83 +344,101 @@ class SearchNewAudioFiles extends Command
                     $this->zipToMp3file($outputFilePath);
                     unlink($outputFilePath);
                 }
+                if(count($mergeTime1) != 0 && count($mergeTime2) != 0)
+                {
+                    $this->mergeTwoFiles($filePath, $mergeTime1, $mergeTime2);
+                }
                 $startTime = $startDateTime->format('H') * 3600 + $startDateTime->format('i') * 60 + $startDateTime->format('s');
             }
-            // $count  = 0;
-            // foreach($precekArray as $precek)
-            // {
-            //     $this->line("path is {$precek}");
-            //     $tempTime = Carbon::createFromFormat('H:i:s', $precek);
-                
-            //     //add the last duration manually
-
-            //     if($count == (count($precekArray) - 1))
-            //     {
-            //         $precek_duration =  61*59 - $tempInterval;
-            //     }
-            //     else
-            //     {
-            //         $precek_duration =  $tempTime->minute * 60 + $tempTime->second - $tempInterval;
-            //     }
-
-            //     //check if the precek time is same in ExcelLog
-
-            //     if($precek_duration != 0)
-            //     {
-            //         $audio->filters()->clip(TimeCode::fromSeconds($tempInterval), TimeCode::fromSeconds($precek_duration));
-            //         $outputFilePath = $aduioConvertPath.'to'.$tempTime->format('H-i-s').'.wav';
-            //         $audio->save($format, $outputFilePath);
-            //         $this->line("<info>{$filePath}</info> -> during <info>{$precek_duration} -> </info> splited </info>");
-            //         $this->zipToMp3file($outputFilePath);
-            //         unlink($outputFilePath);
-            //     }
-            //     $tempInterval = $tempTime->minute * 60 + $tempTime->second;
-            //     $count++;
-                
-            // }
-            // $this->mergeTwoFiles(basename($filePath), $aduioConvertPath);
         }
     }
 
+
+    public function mergeTwoFiles(string $filePath, array $mergeTime1, array $mergeTime2){
+
+
+        $preSplitFile  = AudioFile::where('format', '*.wav')->where('file_name', '<' , basename($filePath))->orderBy('file_name', 'desc')->limit(1)->first();
+
+        $ffmpeg = FFMpeg::create();         
+        $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
+        $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+        
+
+        // // $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
+
+        if($preSplitFile)
+        {
+            $audio = $ffmpeg->open($preSplitFile->file_path);
+            $format = new Wav();
+            $splitStartTime = $mergeTime1['fromTime1']->format('i') * 60 + $mergeTime1['fromTime1']->format('s');
+            $splitInterval = 61 * 59 - $splitStartTime;
+            $audio->filters()->clip(TimeCode::fromSeconds($splitStartTime), TimeCode::fromSeconds($splitInterval));
+            $preMergePath = $aduioConvertPath.'_from_'.$mergeTime1['fromTime1']->format("H-i-s").'_to_'.$mergeTime1['toTime1']->format("H-i-s").'.wav';
+            $this->line($preMergePath);
+            $audio->save($format, $preMergePath);
+            
+            $this->zipToMp3file($preMergePath);
+            unlink($preMergePath);
+            $preMergePath = $aduioConvertPath.'_from_'.$mergeTime1['fromTime1']->format("H-i-s").'_to_'.$mergeTime1['toTime1']->format("H-i-s").'.mp3';
+
+            $afterMergeTime = new \DateTime($mergeTime2['toTime2']->format("H:i:s"));
+            $afterMergeTime->modify('+1 minute');
+            $afterMergePath = $aduioConvertPath.'_from_'.$mergeTime2['fromTime2']->format("H-i-s").'_to_'.$afterMergeTime->format('H-i-s').'.mp3';
+            
+            AudioFile::where('file_path', $afterMergePath)->delete();
+            $outPutPath = $aduioConvertPath.'_from_'.$mergeTime1['fromTime1']->format("H-i-s").'_to_'.$afterMergeTime->format('H-i-s').'.wav';
+            
+            if(file_exists($afterMergePath))
+            {
+                $afterMergeAudio = $ffmpeg->open($afterMergePath);
+                $afterMergeAudio->concat([$preMergePath, $afterMergePath])->saveFromSameCodecs($outPutPath, true);
+                $this->line("merged two files to {$outPutPath}");
+                $this->ZipToMp3file($outPutPath);
+                unlink($outPutPath);
+                unlink($afterMergePath);
+            }
+            unlink($preMergePath);
+        }
+    }
     //merge pre-last splited file and new-first splited file
-    public function mergeTwoFiles(string $originalFileName, $filePath) 
-    {
+    // public function mergeTwoFiles(string $originalFileName, $filePath) 
+    // {
         
-        $preAudioFile = AudioFile::where('file_name', '<', $originalFileName)->where('file_name', 'like', '%to%')->orderBy('file_name', 'desc')->limit(1)->first();
-        if(!$preAudioFile)
-        {
-            return;
-        }
-        $preAudioPath = $preAudioFile->file_path;
-        $aftAudioFile = AudioFile::where('file_name', 'like', $originalFileName.'to%')->orderBy('file_name', 'asc')->limit(1)->first();
-        $aftAudioPath = $aftAudioFile->file_path;
+    //     $preAudioFile = AudioFile::where('file_name', '<', $originalFileName)->where('file_name', 'like', '%to%')->orderBy('file_name', 'desc')->limit(1)->first();
+    //     if(!$preAudioFile)
+    //     {
+    //         return;
+    //     }
+    //     $preAudioPath = $preAudioFile->file_path;
+    //     $aftAudioFile = AudioFile::where('file_name', 'like', $originalFileName.'to%')->orderBy('file_name', 'asc')->limit(1)->first();
+    //     $aftAudioPath = $aftAudioFile->file_path;
 
         
-        $ffmpeg = FFMpeg::create();
-        $aftAudioAudio = $ffmpeg->open($aftAudioPath);
-        // $outTempPath = $aftAudioPath;
+    //     $ffmpeg = FFMpeg::create();
+    //     $aftAudioAudio = $ffmpeg->open($aftAudioPath);
+    //     // $outTempPath = $aftAudioPath;
 
 
-        $outTempPath = pathinfo($filePath, PATHINFO_DIRNAME);
-        // $outTempPath = $filePath['dirname'];
-        // $this->info("==================={$outTempPath}");
-        $outTempPath = $outTempPath."\\temp.mp3";
-        // $preAudio->concat([$preAudioPath, $aftAudioPath])->saveFromSameCodecs($aftAudioPath, true);
-        $aftAudioAudio->concat([$preAudioPath, $aftAudioPath])->saveFromSameCodecs($outTempPath, true);
+    //     $outTempPath = pathinfo($filePath, PATHINFO_DIRNAME);
+    //     // $outTempPath = $filePath['dirname'];
+    //     // $this->info("==================={$outTempPath}");
+    //     $outTempPath = $outTempPath."\\temp.mp3";
+    //     // $preAudio->concat([$preAudioPath, $aftAudioPath])->saveFromSameCodecs($aftAudioPath, true);
+    //     $aftAudioAudio->concat([$preAudioPath, $aftAudioPath])->saveFromSameCodecs($outTempPath, true);
 
-        if(file_exists($aftAudioPath))
-        {
-            unlink($aftAudioPath);
-        }
-        if(file_exists($preAudioPath))
-        {
-            unlink($preAudioPath);
-        }
-        // unlink($preAudioPath);
-        rename($outTempPath, $aftAudioPath);
+    //     if(file_exists($aftAudioPath))
+    //     {
+    //         unlink($aftAudioPath);
+    //     }
+    //     if(file_exists($preAudioPath))
+    //     {
+    //         unlink($preAudioPath);
+    //     }
+    //     // unlink($preAudioPath);
+    //     rename($outTempPath, $aftAudioPath);
 
-        $this->line("merged two files : {$preAudioFile->file_name} and {$aftAudioFile->file_name}");
-    }
+    //     $this->line("merged two files : {$preAudioFile->file_name} and {$aftAudioFile->file_name}");
+    // }
 
     //convert to Mp3 files
     public function ZipToMp3file($filePath)
