@@ -32,16 +32,16 @@ class SearchNewAudioFiles extends Command
 
     public function handle()
     {
-        $excelLogPath = env('EXCEL_LOG');
-        $excelPath = Storage::disk('public')->path($excelLogPath);
-        // $excelPath = env('EXCEL_LOG');
+        // $excelLogPath = env('EXCEL_LOG');
+        // $excelPath = Storage::disk('public')->path($excelLogPath);
+        $excelPath = env('EXCEL_LOG');
 
       
         $this->initExcelFileLog($excelPath);
 
-        $audioFilePath = env('AUDIO_PATH');
-        $audioPath = Storage::disk('public')->path($audioFilePath);
-        // $audioPath = env('AUDIO_PATH');
+        // $audioFilePath = env('AUDIO_PATH');
+        // $audioPath = Storage::disk('public')->path($audioFilePath);
+        $audioPath = env('AUDIO_PATH');
 
         $this->initAudioFiles($audioPath);
         $this->line("<info>!Note: Auto check the uploaded audio files is runnning </info>=============");
@@ -267,9 +267,9 @@ class SearchNewAudioFiles extends Command
             $audio = $ffmpeg->open($filePath);
             $format = new Wav();            
             $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
-            $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+            // $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
 
-            // // $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
+            $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
 
             $audio->addFilter(new \FFMpeg\Filters\Audio\SimpleFilter(['-af', 'anlmdn']));
 
@@ -361,10 +361,10 @@ class SearchNewAudioFiles extends Command
 
         $ffmpeg = FFMpeg::create();         
         $audioFileConvertPath = env('AUDIO_CONVERT_PATH');
-        $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
+        // $aduioConvertPath = Storage::disk('public')->path($audioFileConvertPath). DIRECTORY_SEPARATOR .basename($filePath);
         
 
-        // // $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
+        $aduioConvertPath = $audioFileConvertPath. DIRECTORY_SEPARATOR .basename($filePath);
 
         if($preSplitFile)
         {
@@ -451,7 +451,9 @@ class SearchNewAudioFiles extends Command
 
 
         //remove the noise from audio background sound
-        $audio->filters()->custom("aecho=0.8:0.9:1000:0.3");
+        // $audio->filters()->custom("aecho=0.8:0.9:1000:0.3");
+
+        $audio->filters()->custom('afftdn=nr=22:tn=1:tr=0:om=o');
         $format = new Mp3();
         $format->setAudioKiloBitrate((int)($lowerBitrate / 1000));
         try {
